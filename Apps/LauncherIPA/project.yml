@@ -1,0 +1,64 @@
+# XcodeGen specification for the LauncherIPA app shell.
+#
+# Why XcodeGen: the build host for this milestone is a Mac (there is none on the
+# current Windows machine). A declarative spec is far easier to review and far
+# less likely to be corrupt than a hand-written project.pbxproj, and XcodeGen is
+# a widely used, small tool installed with a single `brew install xcodegen`.
+#
+# Regenerate the project on the Mac with:
+#     cd Apps/LauncherIPA && xcodegen generate
+#
+# Deployment target is deliberately iOS 15.0 to match the target device
+# (iPhone 7 Plus, iOS 15.8.5).
+
+name: Launcher
+
+options:
+  bundleIdPrefix: com.levothanhlam
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+packages:
+  AppCloneLauncher:
+    path: ../..
+
+targets:
+  LauncherIPA:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Assets.xcassets
+    dependencies:
+      - package: AppCloneLauncher
+        product: AppCloneDomain
+      - package: AppCloneLauncher
+        product: LauncherStorage
+      - package: AppCloneLauncher
+        product: BackupKit
+      - package: AppCloneLauncher
+        product: Diagnostics
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.levothanhlam.appclonelauncher
+        PRODUCT_NAME: LauncherIPA
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # Signing identity and team are supplied at build time (xcodebuild
+        # arguments or Xcode UI). Nothing here is a secret, and no team is
+        # committed, so the repository contains no signing material.
+        CODE_SIGN_STYLE: Automatic
+        SUPPORTS_MACCATALYST: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor

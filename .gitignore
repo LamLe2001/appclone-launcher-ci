@@ -1,0 +1,34 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Downloaded toolchain installers and scratch probes (host-specific, large)
+.tools/
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+DerivedData/
+*.xcworkspace/xcuserdata/
+
+# Signing material — must never be committed (plan §9.1, §5.2)
+*.p12
+*.mobileprovision
+*.cer
+*.pem
+*.key
+AuthKey_*.p8
+
+# Local secrets
+.env
+secrets/
+*.local.json
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Build/test output captured during local runs
+*.log
+!docs/reports/evidence/*.log

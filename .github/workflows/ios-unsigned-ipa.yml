@@ -1,0 +1,131 @@
+# Builds an UNSIGNED LauncherIPA archive and .ipa on GitHub's macOS runner.
+#
+# This is the chosen path for this project: the development host is Windows with
+# no Xcode, so the artifact is produced in CI and then signed + installed locally
+# with a free Apple ID via Sideloadly.
+#
+# WHAT THIS PRODUCES
+#   LauncherIPA-unsigned.ipa          unsigned app package
+#   LauncherIPA-unsigned.ipa.sha256   SHA-256 checksum (delivery evidence)
+#   archive.log                       full xcodebuild log (delivery evidence)
+#   resolve.log                       SwiftPM resolution log
+#
+# WHAT IT CANNOT DO
+#   - It cannot sign the app (no certificate in CI).
+#   - It cannot install to the phone (a runner has no USB access to the device).
+#   Signing + installation happen on the user's Windows PC (see
+#   docs/reports/07-github-actions-and-sideload.md).
+#
+# COST WARNING
+#   macOS runner minutes are charged at a much higher multiplier than Linux
+#   minutes, and they draw from the same monthly allowance. Check your plan's
+#   billing page BEFORE clicking Run. Nothing here runs until it is triggered.
+
+name: iOS unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-unsigned-ipa
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Show toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Install XcodeGen
+        run: |
+          brew install xcodegen || brew upgrade xcodegen || true
+          xcodegen --version
+
+      - name: Generate Xcode project
+        working-directory: Apps/LauncherIPA
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: Apps/LauncherIPA
+        run: |
+          set -o pipefail
+          xcodebuild -resolvePackageDependencies \
+            -project Launcher.xcodeproj -scheme LauncherIPA 2>&1 | tee resolve.log
+
+      - name: Archive (unsigned)
+        working-directory: Apps/LauncherIPA
+        run: |
+          set -o pipefail
+          mkdir -p ../../Build/logs
+          xcodebuild archive \
+            -project Launcher.xcodeproj \
+            -scheme LauncherIPA \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath ../../Build/archive/Launcher.xcarchive \
+            -derivedDataPath ../../Build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            2>&1 | tee ../../Build/logs/archive.log
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP="Build/archive/Launcher.xcarchive/Products/Applications/LauncherIPA.app"
+          test -d "$APP" || { echo "::error::app bundle not found"; ls -R Build/archive | head -60; exit 1; }
+          mkdir -p Build/ipa/Payload
+          cp -R "$APP" Build/ipa/Payload/
+          ( cd Build/ipa && zip -qry LauncherIPA-unsigned.ipa Payload )
+          shasum -a 256 Build/ipa/LauncherIPA-unsigned.ipa \
+            | tee Build/ipa/LauncherIPA-unsigned.ipa.sha256
+
+      - name: Report artifact identity
+        run: |
+          PLIST="Build/archive/Launcher.xcarchive/Products/Applications/LauncherIPA.app/Info.plist"
+          {
+            echo "commit: $(git rev-parse HEAD)"
+            echo "CFBundleIdentifier: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")"
+            echo "CFBundleShortVersionString: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+            echo "CFBundleVersion: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+            echo "MinimumOSVersion: $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$PLIST")"
+            echo "architectures: $(lipo -archs "$APP/LauncherIPA" 2>/dev/null || true)"
+          } | tee Build/ipa/artifact-identity.txt
+
+      - name: Warn if MinimumOSVersion is not 15.0
+        run: |
+          PLIST="Build/archive/Launcher.xcarchive/Products/Applications/LauncherIPA.app/Info.plist"
+          MIN=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$PLIST")
+          if [ "$MIN" != "15.0" ]; then
+            echo "::error::MinimumOSVersion is $MIN, expected 15.0 for the iPhone 7 Plus (iOS 15.8.5)"
+            exit 1
+          fi
+          echo "MinimumOSVersion OK: $MIN"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LauncherIPA-unsigned
+          if-no-files-found: error
+          path: |
+            Build/ipa/LauncherIPA-unsigned.ipa
+            Build/ipa/LauncherIPA-unsigned.ipa.sha256
+            Build/ipa/artifact-identity.txt
+            Build/logs/archive.log
+            Apps/LauncherIPA/resolve.log
