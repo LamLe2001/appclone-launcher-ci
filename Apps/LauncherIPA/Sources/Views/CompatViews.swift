@@ -36,6 +36,15 @@ struct TitledSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: () -> Content
 
+    /// Unlabeled initializer so call sites read `TitledSection("About") { … }`,
+    /// matching the familiar `Section("About")` shape. Without this the
+    /// synthesized memberwise init requires `title:` and every call site fails
+    /// to compile (caught by the first real iOS build).
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
     var body: some View {
         Section(header: Text(title)) {
             content()
