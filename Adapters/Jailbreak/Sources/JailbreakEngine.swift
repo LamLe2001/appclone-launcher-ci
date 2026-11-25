@@ -35,6 +35,15 @@ public final class JailbreakEngine: CloneEngine {
         statePlistPath = rootless
             ? "/var/jb/var/mobile/Library/AppClone/active.plist"
             : "/var/mobile/Library/AppClone/active.plist"
+
+        // Tell the (root) daemon where our container is, without needing any
+        // shared filesystem permission: it scans for this marker file. Also
+        // forces the Documents directory to exist before the daemon looks.
+        try? FileManager.default.createDirectory(atPath: docs,
+                                                 withIntermediateDirectories: true)
+        let marker = (docs as NSString).appendingPathComponent(".appclone-launcher")
+        try? (Bundle.main.bundleIdentifier ?? "unknown")
+            .write(toFile: marker, atomically: true, encoding: .utf8)
     }
 
     // MARK: - daemon transport

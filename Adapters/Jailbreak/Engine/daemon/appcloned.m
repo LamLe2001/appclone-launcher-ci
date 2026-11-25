@@ -58,15 +58,29 @@ static NSString *StatePath(void) {
 static NSString *LauncherContainerDocuments(void) {
     static NSString *cached = nil;
     if (cached) return cached;
-    NSString *base = @"/var/mobile/Containers/Data/Application";
+
     NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *base = @"/var/mobile/Containers/Data/Application";
+
+    // 1) Preferred: the launcher drops a marker file in its own Documents.
+    //    This does not depend on metadata-plist key names, which vary by iOS.
+    for (NSString *uuid in [fm contentsOfDirectoryAtPath:base error:NULL]) {
+        NSString *docs = [[base stringByAppendingPathComponent:uuid]
+                             stringByAppendingPathComponent:@"Documents"];
+        NSString *marker = [docs stringByAppendingPathComponent:@".appclone-launcher"];
+        if ([fm fileExistsAtPath:marker]) {
+            cached = docs;
+            return cached;
+        }
+    }
+
+    // 2) Fallback: container metadata.
     for (NSString *uuid in [fm contentsOfDirectoryAtPath:base error:NULL]) {
         NSString *dir = [base stringByAppendingPathComponent:uuid];
         NSString *meta = [dir stringByAppendingPathComponent:
                              @".com.apple.mobile_container_manager.metadata.plist"];
         NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
-        NSString *bid = d[@"MCMMetadataIdentifier"];
-        if ([bid isEqualToString:@"com.levothanhlam.appclonelauncher"]) {
+        if ([d[@"MCMMetadataIdentifier"] isEqualToString:@"com.levothanhlam.appclonelauncher"]) {
             cached = [dir stringByAppendingPathComponent:@"Documents"];
             return cached;
         }
