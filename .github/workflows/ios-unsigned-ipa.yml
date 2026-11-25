@@ -34,7 +34,7 @@ permissions:
 
 concurrency:
   group: ios-unsigned-ipa
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
