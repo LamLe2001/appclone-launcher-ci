@@ -68,7 +68,7 @@ final class AppModel: ObservableObject {
             try? repo.saveCapabilitySnapshot(report: report)
 
             await recoverInterruptedJobs()
-            try reloadSources()
+            await reloadSources()
             try reloadProfiles()
             isReady = true
         } catch {
@@ -117,9 +117,29 @@ final class AppModel: ObservableObject {
     /// Loads the cloneable sources, seeding the validated default (Facebook)
     /// on first run. Additional apps are added only after they pass the project
     /// test suite, so the picker stays honest.
-    func reloadSources() throws {
-        guard let repo = repository else { return }
-        if let existing = try repo.allApplications(), !existing.isEmpty {
+    func reloadSources() async {
+        guard let repo = repository, let engine = currentEngine else { return }
+
+        // Ask the live engine what it can actually clone. On the jailbreak engine
+        // this enumerates the apps really installed on the device, which is what
+        // the create-sheet picker shows.
+        if engine.kind != .mock,
+           let discovered = try? await engine.listSources(), !discovered.isEmpty {
+            for d in discovered {
+                let app = SourceApplication(
+                    sourceType: .installedApp,
+                    bundleID: d.bundleID,
+                    displayName: d.displayName,
+                    engineKind: engine.kind,
+                    engineSourceID: d.sourceID
+                )
+                try? repo.upsertApplication(app)
+            }
+            sources = (try? repo.allApplications()) ?? []
+            return
+        }
+
+        if let existing = try? repo.allApplications(), !existing.isEmpty {
             sources = existing
             return
         }

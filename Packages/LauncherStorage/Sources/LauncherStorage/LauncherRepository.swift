@@ -45,6 +45,24 @@ public final class LauncherRepository: Sendable {
         try dbQueue.read { db in try SourceApplication.fetchOne(db, key: id.rawValue) }
     }
 
+    /// Insert or update a source. The engine can rediscover the same app on
+    /// every refresh, so the row is keyed by (bundleID, engineKind) rather than
+    /// by a freshly generated id; otherwise each scan would duplicate it.
+    public func upsertApplication(_ app: SourceApplication) throws {
+        try dbQueue.write { db in
+            if let existing = try SourceApplication
+                .filter(SourceApplication.Columns.bundleID == app.bundleID)
+                .filter(SourceApplication.Columns.engineKind == app.engineKind.rawValue)
+                .fetchOne(db) {
+                var updated = app
+                updated.id = existing.id
+                try updated.update(db)
+            } else {
+                try app.insert(db)
+            }
+        }
+    }
+
     /// All cloneable sources. Used by the UI so the user can pick which app a
     /// new clone is created from.
     public func allApplications() throws -> [SourceApplication] {

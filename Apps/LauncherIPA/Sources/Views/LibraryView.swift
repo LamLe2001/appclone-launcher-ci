@@ -12,9 +12,19 @@ struct LibraryView: View {
         NavigationView {
             List {
                 TitledSection("Sources") {
-                    row(title: "Facebook",
-                        subtitle: "Native app source",
-                        available: model.engineMode != .unsupported)
+                    if model.sources.isEmpty {
+                        Text(model.engineMode == .jailbreak
+                             ? "No cloneable app reported by the engine."
+                             : "Sources appear here once a real engine is active.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(model.sources) { source in
+                            row(title: source.displayName,
+                                subtitle: source.bundleID,
+                                available: true)
+                        }
+                    }
                 }
 
                 TitledSection("Import IPA") {
