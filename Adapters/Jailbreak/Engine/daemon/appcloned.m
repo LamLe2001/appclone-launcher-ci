@@ -268,6 +268,35 @@ static NSString *HandleLine(NSString *line, NSError **err) {
     return @"ERR 404 unknown command";
 }
 
+#pragma mark - host-readable status
+
+/// Writes a small status file into /var/mobile/Media so the developer host can
+/// read it over AFC. This is the only channel that works without SSH and
+/// without shell access, and it is what makes "daemon runs but app cannot
+/// connect" diagnosable from outside the device.
+static void DumpStatus(NSString *note) {
+    static NSUInteger requests = 0;
+    NSString *docs = LauncherContainerDocuments();
+    NSMutableString *s = [NSMutableString string];
+    [s appendFormat:@"time=%s
+", [[NSDate date].description UTF8String]];
+    [s appendFormat:@"launcherDocuments=%s
+", docs ? docs.UTF8String : "(not found)"];
+    [s appendFormat:@"socket=%s
+", SocketPath().UTF8String];
+    [s appendFormat:@"socketExists=%d
+", access(SocketPath().fileSystemRepresentation, F_OK) == 0];
+    [s appendFormat:@"requestsServed=%lu
+", (unsigned long)requests];
+    [s appendFormat:@"lastNote=%s
+", note ? note.UTF8String : "-"];
+    [s writeToFile:@"/var/mobile/Media/appclone-engine-status.txt"
+        atomically:YES
+          encoding:NSUTF8StringEncoding
+             error:NULL];
+    requests++;
+}
+
 #pragma mark - socket serving
 
 static void ServeClient(int fd) {
@@ -279,6 +308,7 @@ static void ServeClient(int fd) {
                          stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 
     NSError *err = nil;
+    DumpStatus(line);
     NSString *reply = HandleLine(line, &err);
     NSData *out = [[reply stringByAppendingString:@"\n"] dataUsingEncoding:NSUTF8StringEncoding];
     write(fd, out.bytes, out.length);
@@ -313,6 +343,7 @@ int main(int argc, char *argv[]) {
         chmod(addr.sun_path, 0666);   // launcher (mobile) must be able to connect
         listen(srv, 16);
         NSLog(@"[appcloned] listening on %@", sock);
+        DumpStatus(@"listening");
 
         for (;;) {
             int fd = accept(srv, NULL, NULL);
