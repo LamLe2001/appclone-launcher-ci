@@ -150,7 +150,7 @@ final class AppModel: ObservableObject {
             engineKind: currentEngine?.kind ?? .mock,
             engineSourceID: "com.facebook.Facebook"
         )
-        try repo.saveApplication(facebook)
+        try? repo.saveApplication(facebook)
         sources = [facebook]
     }
 
