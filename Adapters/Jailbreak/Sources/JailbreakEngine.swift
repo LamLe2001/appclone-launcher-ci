@@ -53,7 +53,24 @@ public final class JailbreakEngine: CloneEngine {
     /// Sends one request line and returns the daemon's reply line.
     /// Every call opens a fresh connection: the protocol is stateless, which keeps
     /// recovery trivial if the daemon restarts.
+    /// Sends one request line and returns the daemon's reply.
+    ///
+    /// The daemon may have been built at a different revision and therefore
+    /// placed its socket somewhere else; we try every known location so an app
+    /// and daemon that disagree on the path still work together.
     private func send(_ request: String) throws -> String {
+        var lastError = "no socket candidates"
+        for candidate in candidateSockets {
+            do {
+                return try send(request, on: candidate)
+            } catch {
+                lastError = "\(candidate): \(error)"
+            }
+        }
+        throw DaemonError.unreachable(lastError)
+    }
+
+    private func send(_ request: String, on path: String) throws -> String {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw DaemonError.unreachable("socket() failed") }
         defer { close(fd) }
@@ -75,7 +92,7 @@ public final class JailbreakEngine: CloneEngine {
             }
         }
         guard connected == 0 else {
-            throw DaemonError.unreachable("cannot connect to appcloned")
+            throw DaemonError.unreachable("cannot connect")
         }
 
         let out = Array((request + "\n").utf8)
