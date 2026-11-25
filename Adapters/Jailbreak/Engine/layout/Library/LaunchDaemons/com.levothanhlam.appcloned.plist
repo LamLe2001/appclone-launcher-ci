@@ -6,9 +6,6 @@
     <string>com.levothanhlam.appcloned</string>
     <key>ProgramArguments</key>
     <array>
-        <!-- ROOTLESS: the binary really lives under /var/jb. A bare
-             /usr/libexec/... path does not exist on a rootless jailbreak and
-             made launchd fail silently. -->
         <string>/var/jb/usr/libexec/appcloned</string>
     </array>
     <key>RunAtLoad</key>
