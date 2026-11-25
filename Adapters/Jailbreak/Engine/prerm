@@ -1,0 +1,4 @@
+#!/bin/sh
+launchctl unload /var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null || \
+  launchctl unload /Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null || true
+exit 0

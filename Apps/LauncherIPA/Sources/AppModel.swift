@@ -17,6 +17,7 @@ import Diagnostics
 final class AppModel: ObservableObject {
 
     enum EngineMode: String {
+        case jailbreak = "Jailbreak engine"
         case mock = "Mock (no engine)"
         case unsupported = "No engine available"
     }
@@ -44,10 +45,22 @@ final class AppModel: ObservableObject {
             let repo = try LauncherRepository.open(at: url)
             repository = repo
 
-            // No real adapter is linked yet. Fail honestly rather than pretend.
-            let engine: CloneEngine = MockEngine()
+            // Prefer the real jailbreak engine; it reports itself unusable when
+            // the privileged daemon is not installed, in which case we fall back
+            // to the mock so the UI still runs (clearly labelled).
+            let engine: CloneEngine
+            let mode: EngineMode
+            let jailbreak = JailbreakEngine()
+            if let probe = try? await jailbreak.probeEnvironment(),
+               probe.canUse(.probeEnvironment) {
+                engine = jailbreak
+                mode = .jailbreak
+            } else {
+                engine = MockEngine()
+                mode = .mock
+            }
             currentEngine = engine
-            engineMode = .mock
+            engineMode = mode
             coordinator = ProfileCoordinator(engine: engine, repository: repo)
 
             let report = try await engine.probeEnvironment()
@@ -114,8 +127,8 @@ final class AppModel: ObservableObject {
             sourceType: .installedApp,
             bundleID: "com.facebook.Facebook",
             displayName: "Facebook",
-            engineKind: .mock,
-            engineSourceID: "facebook"
+            engineKind: currentEngine?.kind ?? .mock,
+            engineSourceID: "com.facebook.Facebook"
         )
         try repo.saveApplication(facebook)
         sources = [facebook]
@@ -126,6 +139,10 @@ final class AppModel: ObservableObject {
     func createProfile(source: SourceApplication, name: String, color: ProfileColor) async {
         guard let coordinator, let repo = repository else { return }
         let app = source
+        // Bind the source row to whichever engine is actually active, so a
+        // profile can never be created under the wrong engine.
+        var app = source
+        app.engineKind = currentEngine?.kind ?? .mock
         try? repo.saveApplication(app)
 
         activeJobText = "Creating…"

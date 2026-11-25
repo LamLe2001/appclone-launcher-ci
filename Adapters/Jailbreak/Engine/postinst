@@ -1,0 +1,9 @@
+#!/bin/sh
+# Create the container root and start the daemon.
+mkdir -p /var/mobile/Library/AppClone/Containers
+chown -R mobile:mobile /var/mobile/Library/AppClone 2>/dev/null || true
+chmod 755 /var/mobile/Library/AppClone
+grep -q "com.levothanhlam.appcloned" /var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null && \
+  launchctl load -w /var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null || \
+  launchctl load -w /Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null || true
+exit 0

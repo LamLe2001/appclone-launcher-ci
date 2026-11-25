@@ -1,0 +1,77 @@
+# Builds the AppClone container engine (.deb) with Theos on a macOS runner.
+#
+# Why CI: Theos needs Xcode's iOS SDK. This project's dev host is Windows, which
+# cannot produce a jailbreak package. The macOS runner can.
+#
+# Outputs:
+#   com.levothanhlam.appclone_<version>_iphoneos-arm64.deb   (rootless)
+#   build.log
+#
+# Install on a jailbroken device (Dopamine/palera1n rootless):
+#   Filza → tap the .deb → Install with Sileo, or: dpkg -i <deb>
+
+name: iOS engine deb
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Adapters/Jailbreak/Engine/**'
+      - '.github/workflows/ios-engine-deb.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          ls /Applications | grep -i xcode
+
+      - name: Install Theos
+        run: |
+          export THEOS=$HOME/theos
+          git clone --recursive --depth 1 https://github.com/theos/theos.git "$THEOS"
+          # Use Xcode's SDK instead of downloading one.
+          sudo ln -sfn "$(xcrun --sdk iphoneos --show-sdk-path)" "$THEOS/sdks/iPhoneOS.sdk" 2>/dev/null || \
+            mkdir -p "$THEOS/sdks" && ln -sfn "$(xcrun --sdk iphoneos --show-sdk-path)" "$THEOS/sdks/iPhoneOS.sdk"
+          ls -la "$THEOS/sdks"
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+          echo "PATH=$THEOS/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Install ldid
+        run: |
+          brew install ldid || true
+          which ldid || echo "ldid missing - Theos bundles its own"
+
+      - name: Build package (rootless)
+        working-directory: Adapters/Jailbreak/Engine
+        run: |
+          set -o pipefail
+          export THEOS=$HOME/theos
+          export THEOS_PACKAGE_SCHEME=rootless
+          make package FINALPACKAGE=1 2>&1 | tee /tmp/build.log
+
+      - name: List artifacts
+        working-directory: Adapters/Jailbreak/Engine
+        run: |
+          find . -name "*.deb" -maxdepth 3 -exec ls -la {} \;
+          find . -name "*.deb" -maxdepth 3 -exec shasum -a 256 {} \; | tee /tmp/deb.sha256
+
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: appclone-engine-deb
+          if-no-files-found: error
+          path: |
+            Adapters/Jailbreak/Engine/packages/*.deb
+            /tmp/deb.sha256
+            /tmp/build.log

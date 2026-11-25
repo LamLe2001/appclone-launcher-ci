@@ -1,0 +1,9 @@
+Package: com.levothanhlam.appclone
+Name: AppClone Container Engine
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Per-profile data containers for another app (path + App Group + Keychain redirection).
+Maintainer: LAMLE
+Author: LAMLE
+Section: Utilities
+Depends: mobilesubstrate

@@ -36,6 +36,7 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      - path: ../../Adapters/Jailbreak/Sources
       - path: Assets.xcassets
     dependencies:
       - package: AppCloneLauncher
