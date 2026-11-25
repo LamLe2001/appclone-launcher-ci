@@ -1,9 +1,34 @@
 #!/bin/sh
-# Create the container root and start the daemon.
-mkdir -p /var/mobile/Library/AppClone/Containers
-chown -R mobile:mobile /var/mobile/Library/AppClone 2>/dev/null || true
-chmod 755 /var/mobile/Library/AppClone
-grep -q "com.levothanhlam.appcloned" /var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null && \
-  launchctl load -w /var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null || \
-  launchctl load -w /Library/LaunchDaemons/com.levothanhlam.appcloned.plist 2>/dev/null || true
+# Rootless-aware daemon start.
+#
+# On a rootless jailbreak the daemon binary and plist live under /var/jb, and
+# launchd is driven with `launchctl bootstrap system <plist>` rather than the
+# legacy `load`. We try every variant because the exact incantation differs
+# between Dopamine, palera1n rootless and rootful.
+set -u
+
+mkdir -p /var/mobile/Library/AppClone/Containers 2>/dev/null
+chown -R mobile:mobile /var/mobile/Library/AppClone 2>/dev/null
+chmod 755 /var/mobile/Library/AppClone 2>/dev/null
+
+for P in \
+    /var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist \
+    /Library/LaunchDaemons/com.levothanhlam.appcloned.plist
+do
+    [ -f "$P" ] || continue
+
+    launchctl bootout system "$P" 2>/dev/null
+    launchctl bootstrap system "$P" 2>/dev/null && break
+    launchctl load -w "$P" 2>/dev/null && break
+done
+
+# Last resort: start it detached so the socket exists even if launchd refuses.
+BIN=/var/jb/usr/libexec/appcloned
+[ -x "$BIN" ] || BIN=/usr/libexec/appcloned
+if [ -x "$BIN" ]; then
+    if ! pgrep -x appcloned >/dev/null 2>&1; then
+        nohup "$BIN" >/var/mobile/Library/AppClone/appcloned.log 2>&1 &
+    fi
+fi
+
 exit 0
