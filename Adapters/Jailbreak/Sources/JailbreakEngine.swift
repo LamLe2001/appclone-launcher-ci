@@ -60,7 +60,7 @@ public final class JailbreakEngine: CloneEngine {
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
-        let pathBytes = Array(socketPath.utf8)
+        let pathBytes = Array(path.utf8)
         guard pathBytes.count < MemoryLayout.size(ofValue: addr.sun_path) else {
             throw DaemonError.unreachable("socket path too long")
         }
@@ -129,7 +129,7 @@ public final class JailbreakEngine: CloneEngine {
                                         engineVersion: "appcloned-0.1.0",
                                         adapterVersion: adapterVersion,
                                         osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-                                        jailbreakFlavor: socketPath.contains("/var/jb") ? "rootless" : "rootful")
+                                        jailbreakFlavor: candidateSockets.contains { $0.contains("/var/jb") } ? "rootless" : "rootful")
         return EnvironmentReport(fingerprint: fp,
                                  capabilities: capabilities,
                                  summary: daemonUp ? "Jailbreak engine connected"
