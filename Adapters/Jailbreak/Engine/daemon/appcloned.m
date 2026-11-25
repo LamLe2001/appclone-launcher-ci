@@ -263,6 +263,10 @@ int main(int argc, char *argv[]) {
         EnsureDir(ContainersRoot(), &err);
 
         NSString *sock = SocketPath();
+        // The socket lives in /var/jb/var/run on rootless, which does NOT exist
+        // by default. bind() fails with ENOENT if the parent is missing, which
+        // made the daemon exit instantly. Create it first.
+        EnsureDir([sock stringByDeletingLastPathComponent], &err);
         unlink(sock.fileSystemRepresentation);
 
         int srv = socket(AF_UNIX, SOCK_STREAM, 0);
