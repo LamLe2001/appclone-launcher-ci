@@ -291,11 +291,32 @@ static NSString *HandleLine(NSString *line, NSError **err) {
 static void DumpStatus(NSString *note) {
     static NSUInteger requests = 0;
     NSString *docs = LauncherContainerDocuments();
+
+    // Scan statistics so the host can tell "marker missing" apart from
+    // "directory unreadable" without a shell on the device.
+    NSUInteger scanned = 0, markers = 0;
+    NSString *firstUUID = @"-";
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSArray *apps = [fm contentsOfDirectoryAtPath:@"/var/mobile/Containers/Data/Application"
+                                            error:NULL];
+    for (NSString *uuid in apps) {
+        if (scanned == 0) firstUUID = uuid;
+        scanned++;
+        NSString *docsPath = [[[@"/var/mobile/Containers/Data/Application"
+                                 stringByAppendingPathComponent:uuid]
+                                 stringByAppendingPathComponent:@"Documents"]
+                                 stringByAppendingPathComponent:@".appclone-launcher"];
+        if ([fm fileExistsAtPath:docsPath]) markers++;
+    }
+
     NSMutableString *out = [NSMutableString string];
     [out appendFormat:@"time=%s\n", [[NSDate date].description UTF8String]];
     [out appendFormat:@"launcherDocuments=%s\n", docs ? docs.UTF8String : "(not found)"];
     [out appendFormat:@"socket=%s\n", SocketPath().UTF8String];
     [out appendFormat:@"socketExists=%d\n", access(SocketPath().fileSystemRepresentation, F_OK) == 0];
+    [out appendFormat:@"scanned=%lu\n", (unsigned long)scanned];
+    [out appendFormat:@"markersFound=%lu\n", (unsigned long)markers];
+    [out appendFormat:@"firstContainer=%s\n", firstUUID.UTF8String];
     [out appendFormat:@"requestsServed=%lu\n", (unsigned long)requests];
     [out appendFormat:@"lastNote=%s\n", note ? note.UTF8String : "-"];
     [out writeToFile:@"/var/mobile/Media/appclone-engine-status.txt"
@@ -352,6 +373,15 @@ int main(int argc, char *argv[]) {
         listen(srv, 16);
         NSLog(@"[appcloned] listening on %@", sock);
         DumpStatus(@"listening");
+
+        // Refresh the status file every 10 s so a stale timestamp can never be
+        // mistaken for "daemon not running".
+        dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+                                                        dispatch_get_global_queue(0, 0));
+        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 10ull * NSEC_PER_SEC),
+                                  10ull * NSEC_PER_SEC, NSEC_PER_SEC);
+        dispatch_source_set_event_handler(timer, ^{ DumpStatus(@"heartbeat"); });
+        dispatch_resume(timer);
 
         for (;;) {
             int fd = accept(srv, NULL, NULL);
