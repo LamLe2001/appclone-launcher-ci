@@ -28,6 +28,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var sources: [SourceApplication] = []
     @Published private(set) var environment: EnvironmentReport?
     @Published private(set) var engineMode: EngineMode = .unsupported
+    /// Why the jailbreak engine was not used. Shown in Settings.
+    @Published private(set) var engineDiagnostics: [String] = []
     @Published private(set) var startupError: String?
     @Published var activeJobText: String?
     @Published private(set) var isReady = false
@@ -51,13 +53,16 @@ final class AppModel: ObservableObject {
             let engine: CloneEngine
             let mode: EngineMode
             let jailbreak = JailbreakEngine()
+            let jbDiag = jailbreak.diagnostics()
             if let probe = try? await jailbreak.probeEnvironment(),
                probe.canUse(.probeEnvironment) {
                 engine = jailbreak
                 mode = .jailbreak
+                engineDiagnostics = jbDiag
             } else {
                 engine = MockEngine()
                 mode = .mock
+                engineDiagnostics = jbDiag
             }
             currentEngine = engine
             engineMode = mode

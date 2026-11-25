@@ -215,6 +215,25 @@ public final class JailbreakEngine: CloneEngine {
         guard ok(reply) != nil else { throw EngineError.rejected(reason: reply) }
     }
 
+    /// Human-readable state of every file/endpoint the engine depends on.
+    /// Surfaced in the app's Settings screen so a failure is diagnosable without
+    /// a shell on the device.
+    public func diagnostics() -> [String] {
+        let fm = FileManager.default
+        var out: [String] = []
+        out.append("socket path: \(socketPath)")
+        out.append("socket exists: \(fm.fileExists(atPath: socketPath) ? "yes" : "no")")
+        out.append("daemon binary: \(fm.fileExists(atPath: "/var/jb/usr/libexec/appcloned") ? "yes" : "no")")
+        out.append("launchd plist: \(fm.fileExists(atPath: "/var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist") ? "yes" : "no")")
+        out.append("tweak dylib: \(fm.fileExists(atPath: "/var/jb/Library/MobileSubstrate/DynamicLibraries/AppCloneKit.dylib") ? "yes" : "no")")
+        do {
+            out.append("ping: \(try send("PING"))")
+        } catch {
+            out.append("ping failed: \(error)")
+        }
+        return out
+    }
+
     // MARK: - helpers
 
     private static func applicationWorkspace() -> NSObject? {

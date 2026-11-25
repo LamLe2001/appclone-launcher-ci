@@ -35,6 +35,17 @@ struct SettingsView: View {
                     }
                 }
 
+                if !model.engineDiagnostics.isEmpty {
+                    TitledSection("Engine diagnostics") {
+                        ForEach(model.engineDiagnostics, id: \.self) { line in
+                            Text(line)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+
                 TitledSection("Capabilities") {
                     if let env = model.environment {
                         ForEach(env.capabilities, id: \.capability) { record in
