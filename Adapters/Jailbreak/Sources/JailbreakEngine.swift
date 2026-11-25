@@ -18,15 +18,20 @@ public final class JailbreakEngine: CloneEngine {
     public nonisolated let adapterVersion = "jb-0.1.0"
 
     /// Rootless jailbreaks relocate to /var/jb.
-    private let socketPath: String
+    /// Every location a daemon build may have placed its socket, newest first.
+    /// The engine tries them in order, so an app and a daemon built at slightly
+    /// different revisions still connect instead of silently failing.
+    private let candidateSockets: [String]
     private let statePlistPath: String
 
     public init(rootless: Bool = true) {
-        // The daemon places its socket inside THIS app's Documents directory,
-        // because a sandboxed app can always reach its own container while
-        // /var/jb is not guaranteed to be reachable.
         let docs = (NSHomeDirectory() as NSString).appendingPathComponent("Documents")
-        socketPath = (docs as NSString).appendingPathComponent("appcloned.sock")
+        candidateSockets = [
+            (docs as NSString).appendingPathComponent("appcloned.sock"),
+            "/var/mobile/Library/AppClone/appcloned.sock",
+            "/var/jb/var/run/appcloned.sock",
+            "/var/run/appcloned.sock",
+        ]
         statePlistPath = rootless
             ? "/var/jb/var/mobile/Library/AppClone/active.plist"
             : "/var/mobile/Library/AppClone/active.plist"
@@ -222,8 +227,17 @@ public final class JailbreakEngine: CloneEngine {
     public func diagnostics() -> [String] {
         let fm = FileManager.default
         var out: [String] = []
-        out.append("socket path: \(socketPath)")
-        out.append("socket exists: \(fm.fileExists(atPath: socketPath) ? "yes" : "no")")
+        for path in candidateSockets {
+            out.append("\(path) -> \(fm.fileExists(atPath: path) ? "exists" : "missing")")
+        }
+        if let status = try? String(contentsOfFile: "/var/mobile/Media/appclone-engine-status.txt",
+                                    encoding: .utf8) {
+            for line in status.split(separator: "\n") {
+                out.append("daemon: \(line)")
+            }
+        } else {
+            out.append("daemon status file: unavailable")
+        }
         out.append("daemon binary: \(fm.fileExists(atPath: "/var/jb/usr/libexec/appcloned") ? "yes" : "no")")
         out.append("launchd plist: \(fm.fileExists(atPath: "/var/jb/Library/LaunchDaemons/com.levothanhlam.appcloned.plist") ? "yes" : "no")")
         out.append("tweak dylib: \(fm.fileExists(atPath: "/var/jb/Library/MobileSubstrate/DynamicLibraries/AppCloneKit.dylib") ? "yes" : "no")")
