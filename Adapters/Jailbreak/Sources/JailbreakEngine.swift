@@ -22,13 +22,14 @@ public final class JailbreakEngine: CloneEngine {
     private let statePlistPath: String
 
     public init(rootless: Bool = true) {
-        if rootless {
-            socketPath = "/var/jb/var/run/appcloned.sock"
-            statePlistPath = "/var/jb/var/mobile/Library/AppClone/active.plist"
-        } else {
-            socketPath = "/var/run/appcloned.sock"
-            statePlistPath = "/var/mobile/Library/AppClone/active.plist"
-        }
+        // The daemon places its socket inside THIS app's Documents directory,
+        // because a sandboxed app can always reach its own container while
+        // /var/jb is not guaranteed to be reachable.
+        let docs = (NSHomeDirectory() as NSString).appendingPathComponent("Documents")
+        socketPath = (docs as NSString).appendingPathComponent("appcloned.sock")
+        statePlistPath = rootless
+            ? "/var/jb/var/mobile/Library/AppClone/active.plist"
+            : "/var/mobile/Library/AppClone/active.plist"
     }
 
     // MARK: - daemon transport

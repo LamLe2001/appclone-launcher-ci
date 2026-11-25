@@ -51,7 +51,37 @@ static NSString *ContainersRoot(void) {
 static NSString *StatePath(void) {
     return [AppsRoot() stringByAppendingString:@"/active.plist"];
 }
+/// Socket must live where the *sandboxed* launcher can reach it. The launcher
+/// can always read its own data container, and this daemon runs as root so it
+/// can create the socket there. /var/jb is NOT reliably reachable from a
+/// TrollStore app's sandbox, which is why the first design failed.
+static NSString *LauncherContainerDocuments(void) {
+    static NSString *cached = nil;
+    if (cached) return cached;
+    NSString *base = @"/var/mobile/Containers/Data/Application";
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *uuid in [fm contentsOfDirectoryAtPath:base error:NULL]) {
+        NSString *dir = [base stringByAppendingPathComponent:uuid];
+        NSString *meta = [dir stringByAppendingPathComponent:
+                             @".com.apple.mobile_container_manager.metadata.plist"];
+        NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
+        NSString *bid = d[@"MCMMetadataIdentifier"];
+        if ([bid isEqualToString:@"com.levothanhlam.appclonelauncher"]) {
+            cached = [dir stringByAppendingPathComponent:@"Documents"];
+            return cached;
+        }
+    }
+    return nil;
+}
+
 static NSString *SocketPath(void) {
+    NSString *docs = LauncherContainerDocuments();
+    if (docs) {
+        [[NSFileManager defaultManager] createDirectoryAtPath:docs
+                                  withIntermediateDirectories:YES attributes:nil error:NULL];
+        return [docs stringByAppendingPathComponent:@"appcloned.sock"];
+    }
+    // Fallback for the case where the launcher is not installed yet.
     return [kRoot stringByAppendingString:@"/var/run/appcloned.sock"];
 }
 
