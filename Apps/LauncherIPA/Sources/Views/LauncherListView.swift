@@ -7,6 +7,7 @@ struct LauncherListView: View {
     @State private var showingCreate = false
     @State private var newName = ""
     @State private var newColor: ProfileColor = .blue
+    @State private var selectedSourceID: String = ""
 
     var body: some View {
         NavigationView {
@@ -23,6 +24,9 @@ struct LauncherListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
+                        if selectedSourceID.isEmpty {
+                            selectedSourceID = model.sources.first?.id.rawValue ?? ""
+                        }
                         showingCreate = true
                     } label: {
                         Image(systemName: "plus")
@@ -77,6 +81,34 @@ struct LauncherListView: View {
     private var createSheet: some View {
         NavigationView {
             Form {
+                TitledSection("App to clone") {
+                    if model.sources.isEmpty {
+                        Text("No cloneable app source available.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(model.sources) { source in
+                            Button {
+                                selectedSourceID = source.id.rawValue
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(source.displayName)
+                                        Text(source.bundleID)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedSourceID == source.id.rawValue {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.accentColor)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
                 TitledSection("Name") {
                     TextField("e.g. Facebook Work", text: $newName)
                 }
@@ -99,12 +131,15 @@ struct LauncherListView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
+                        guard let source = model.sources.first(where: { $0.id.rawValue == selectedSourceID })
+                                ?? model.sources.first else { return }
                         let name = newName
                         let color = newColor
                         showingCreate = false
                         newName = ""
-                        Task { await model.createProfile(name: name, color: color) }
+                        Task { await model.createProfile(source: source, name: name, color: color) }
                     }
+                    .disabled(model.sources.isEmpty)
                 }
             }
         }

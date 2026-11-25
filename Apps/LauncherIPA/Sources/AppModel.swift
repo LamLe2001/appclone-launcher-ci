@@ -22,6 +22,9 @@ final class AppModel: ObservableObject {
     }
 
     @Published private(set) var profiles: [Profile] = []
+    /// Source applications the user may clone FROM. Only validated sources are
+    /// listed; an untested app is never advertised as supported (plan §4.1).
+    @Published private(set) var sources: [SourceApplication] = []
     @Published private(set) var environment: EnvironmentReport?
     @Published private(set) var engineMode: EngineMode = .unsupported
     @Published private(set) var startupError: String?
@@ -52,6 +55,7 @@ final class AppModel: ObservableObject {
             try? repo.saveCapabilitySnapshot(report: report)
 
             await recoverInterruptedJobs()
+            try reloadSources()
             try reloadProfiles()
             isReady = true
         } catch {
@@ -97,17 +101,31 @@ final class AppModel: ObservableObject {
         profiles = try repository?.profiles() ?? []
     }
 
-    /// Creates a clone through the coordinator. The UI shows the honest result,
-    /// including when reconciliation is required.
-    func createProfile(name: String, color: ProfileColor) async {
-        guard let coordinator, let repo = repository else { return }
-        let app = SourceApplication(
+    /// Loads the cloneable sources, seeding the validated default (Facebook)
+    /// on first run. Additional apps are added only after they pass the project
+    /// test suite, so the picker stays honest.
+    func reloadSources() throws {
+        guard let repo = repository else { return }
+        if let existing = try repo.allApplications(), !existing.isEmpty {
+            sources = existing
+            return
+        }
+        let facebook = SourceApplication(
             sourceType: .installedApp,
             bundleID: "com.facebook.Facebook",
             displayName: "Facebook",
             engineKind: .mock,
             engineSourceID: "facebook"
         )
+        try repo.saveApplication(facebook)
+        sources = [facebook]
+    }
+
+    /// Creates a clone through the coordinator. The UI shows the honest result,
+    /// including when reconciliation is required.
+    func createProfile(source: SourceApplication, name: String, color: ProfileColor) async {
+        guard let coordinator, let repo = repository else { return }
+        let app = source
         try? repo.saveApplication(app)
 
         activeJobText = "Creating…"
@@ -117,7 +135,7 @@ final class AppModel: ObservableObject {
             let result = try await coordinator.createBlankProfile(
                 app: app,
                 sourceVersion: nil,
-                name: name.isEmpty ? "Facebook" : name,
+                name: name.isEmpty ? source.displayName : name,
                 color: color,
                 idempotencyKey: "create-\(UUID().uuidString)"
             )

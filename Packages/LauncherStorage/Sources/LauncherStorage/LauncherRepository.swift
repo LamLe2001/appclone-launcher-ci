@@ -45,6 +45,16 @@ public final class LauncherRepository: Sendable {
         try dbQueue.read { db in try SourceApplication.fetchOne(db, key: id.rawValue) }
     }
 
+    /// All cloneable sources. Used by the UI so the user can pick which app a
+    /// new clone is created from.
+    public func allApplications() throws -> [SourceApplication] {
+        try dbQueue.read { db in
+            try SourceApplication
+                .order(SourceApplication.Columns.displayName.asc)
+                .fetchAll(db)
+        }
+    }
+
     public func saveSourceVersion(_ version: SourceVersion) throws {
         try dbQueue.write { db in try version.save(db) }
     }
