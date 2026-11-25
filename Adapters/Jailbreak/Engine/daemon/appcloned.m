@@ -74,6 +74,12 @@ static BOOL ValidBundleID(NSString *s) {
 
 #pragma mark - filesystem helpers
 
+/// Safe description of an NSError** without dereferencing a NULL out-param.
+static NSString *ErrDesc(NSError **err) {
+    if (err && *err) return (*err).localizedDescription;
+    return @"unknown";
+}
+
 static BOOL EnsureDir(NSString *path, NSError **err) {
     return [[NSFileManager defaultManager] createDirectoryAtPath:path
                                      withIntermediateDirectories:YES
@@ -127,7 +133,7 @@ static NSString *HandleLine(NSString *line, NSError **err) {
     NSArray *parts = [line componentsSeparatedByString:@" "];
     if (parts.count == 0) return @"ERR 400 empty";
 
-    NSString *cmd = parts[0].uppercaseString;
+    NSString *cmd = [(NSString *)parts[0] uppercaseString] ?: @"";
     NSMutableArray *args = [[parts subarrayWithRange:NSMakeRange(1, parts.count - 1)] mutableCopy];
 
     if ([cmd isEqualToString:@"PING"]) {
@@ -143,7 +149,7 @@ static NSString *HandleLine(NSString *line, NSError **err) {
         NSString *dir = [[ContainersRoot() stringByAppendingPathComponent:bid]
                             stringByAppendingPathComponent:cid];
         if (!EnsureDir([dir stringByAppendingPathComponent:@"Data"], err)) {
-            return [NSString stringWithFormat:@"ERR 500 mkdir: %@", err.localizedDescription ?: @"?"];
+            return [NSString stringWithFormat:@"ERR 500 mkdir: %@", ErrDesc(err)];
         }
         // Mirror the layout a real iOS data container has, so apps that probe
         // for Documents/Library/tmp behave the same.
@@ -187,7 +193,7 @@ static NSString *HandleLine(NSString *line, NSError **err) {
         // somehow passed: re-check the resolved path.
         if (![dir hasPrefix:ContainersRoot()]) return @"ERR 403 outside root";
         [fm removeItemAtPath:dir error:err];
-        return err ? [NSString stringWithFormat:@"ERR 500 %@", err.localizedDescription] : @"OK deleted";
+        return *err ? [NSString stringWithFormat:@"ERR 500 %@", ErrDesc(err)] : @"OK deleted";
     }
 
     if ([cmd isEqualToString:@"LIST"]) {
@@ -217,7 +223,7 @@ static NSString *HandleLine(NSString *line, NSError **err) {
         }
         state[@"active"] = map;
         if (!WriteState(state, err)) {
-            return [NSString stringWithFormat:@"ERR 500 write: %@", err.localizedDescription ?: @"?"];
+            return [NSString stringWithFormat:@"ERR 500 write: %@", ErrDesc(err)];
         }
         return @"OK active set";
     }
