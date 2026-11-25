@@ -277,23 +277,17 @@ static NSString *HandleLine(NSString *line, NSError **err) {
 static void DumpStatus(NSString *note) {
     static NSUInteger requests = 0;
     NSString *docs = LauncherContainerDocuments();
-    NSMutableString *s = [NSMutableString string];
-    [s appendFormat:@"time=%s
-", [[NSDate date].description UTF8String]];
-    [s appendFormat:@"launcherDocuments=%s
-", docs ? docs.UTF8String : "(not found)"];
-    [s appendFormat:@"socket=%s
-", SocketPath().UTF8String];
-    [s appendFormat:@"socketExists=%d
-", access(SocketPath().fileSystemRepresentation, F_OK) == 0];
-    [s appendFormat:@"requestsServed=%lu
-", (unsigned long)requests];
-    [s appendFormat:@"lastNote=%s
-", note ? note.UTF8String : "-"];
-    [s writeToFile:@"/var/mobile/Media/appclone-engine-status.txt"
-        atomically:YES
-          encoding:NSUTF8StringEncoding
-             error:NULL];
+    NSMutableString *out = [NSMutableString string];
+    [out appendFormat:@"time=%s\n", [[NSDate date].description UTF8String]];
+    [out appendFormat:@"launcherDocuments=%s\n", docs ? docs.UTF8String : "(not found)"];
+    [out appendFormat:@"socket=%s\n", SocketPath().UTF8String];
+    [out appendFormat:@"socketExists=%d\n", access(SocketPath().fileSystemRepresentation, F_OK) == 0];
+    [out appendFormat:@"requestsServed=%lu\n", (unsigned long)requests];
+    [out appendFormat:@"lastNote=%s\n", note ? note.UTF8String : "-"];
+    [out writeToFile:@"/var/mobile/Media/appclone-engine-status.txt"
+          atomically:YES
+            encoding:NSUTF8StringEncoding
+               error:NULL];
     requests++;
 }
 
