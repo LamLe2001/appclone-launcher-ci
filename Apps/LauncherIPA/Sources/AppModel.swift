@@ -158,7 +158,6 @@ final class AppModel: ObservableObject {
     /// including when reconciliation is required.
     func createProfile(source: SourceApplication, name: String, color: ProfileColor) async {
         guard let coordinator, let repo = repository else { return }
-        let app = source
         // Bind the source row to whichever engine is actually active, so a
         // profile can never be created under the wrong engine.
         var app = source
